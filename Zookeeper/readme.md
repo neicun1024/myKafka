@@ -223,4 +223,57 @@ Leader建立完后，Leader周期性地不断向Follower发送心跳（ping命�
 ### 5. 主从服务器之间的数据同步
 ![20220402141246](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402141246.png)
 
+- 数据库中的两阶段提交也是这个流程
+- 在第6点中的半数以上指的是所有节点的半数以上（包括主节点和从节点），之所以只要半数以上，是为了提高整个集群写数据的性能
+
 ### 6. Zookeeper中NIO与BIO的应用
+- NIO（Non-blocking I/O，多路复用，将所有对端口的访问放到队列里面）
+  - 用于被客户端连接的2181端口，使用的是NIO模式与客户端建立连接
+    ![20220402143412](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402143412.png)
+  - 客户端开启Watch时，也使用NIO，等待Zookeeper服务器的回调
+    ![20220402143751](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402143751.png)
+- BIO
+  - 集群在选举时，多个节点之间的投票通信端口，使用BIO进行通信
+
+
+## 十、CAP理论
+
+### 1. CAP理论
+
+CAP理论为：一个分布式系统最多只能同时满足一致性、可用性和分区容错性这三项中的两项。
+- 一致性（Consistency）
+一致性指“all node see the same data at the same time”，即更新操作成功并返回客户端完成后，所有节点在同一时间的数据完全一致。
+- 可用性（Availability）
+可用性指“Reads and writes always succeed”，即服务一致可用，而且是正常响应时间
+- 分区容错性（Partition tolerance）
+分区容错性指“the system continues to operate despite arbitrary message loss or failure of part of the system”，即分布式系统在遇到某节点或网络分区故障的时候，仍然能够对外提供满足一致性或可用性的服务。——避免单点故障，就要进行冗余部署，冗余部署相当于是服务的分区，这样的分区就具备了容错性。
+
+### 2. CAP权衡
+通过CAP理论，我们知道无法同时满足一致性可用性和分区容错性这三个特性，那要舍弃哪个呢？
+
+对于多数大型互联网应用的场景，主机众多、部署分散，而且现在的集群规模越来越大，所以节点故障、网络故障时常态，而且要保证服务可用性达到N个9，即保证P和A，舍弃C（退而求其次保证最终一致性）。虽然某些地方会影响客户体验，但没达到造成用户流程的严重程度。
+
+对于涉及到钱财这样不能有一丝让步的场景，C必须保证。网络发生故障宁可停止服务，这是保证CA，舍弃P。貌似这几年国内银行业发生了不下10起事故，但影响面不大，报道也不多，广大群众知道的少。还有一种是保证CP，舍弃A。例如网络故障是只读不写。
+
+孰优孰略没有定论，只能根据场景定夺，适合的才是最好的。
+
+![20220402145107](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402145107.png)
+举个例子，银行系统存在两个冗余节点，小叶向银行存了5000w，假设存到了节点1，由于网络动荡，节点2下线又上线，所以需要进行数据同步。那么在同步的过程中，整个银行系统是否允许对外提供访问？
+- 如果该系统允许在数据同步的过程中对外提供服务，那追求的是AP
+- 否则，追求的是CP（比如很多银行会在晚上11点到12点无法操作）
+![20220402145332](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402145332.png)
+
+### 3. BASE理论
+
+BASE理论是对CAP理论的延伸，核心思想是即使无法做到强一致性，但应用可以采用适合的方式达到最终一致性。
+- 基本可用（Basically Available）
+基本可用是指分布式系统在出现故障的时候，允许损失部分可用性，即保证核心可用。
+
+电商大促时，为了应对访问量激增，部分用户可能被引导到降级页面，服务层也可能只提供降级服务。这就是损失部分可用性的体现。
+- 软状态（Soft State）
+软状态是指允许系统存在中间状态，而该中间状态不会影响系统整体可用性。分布式存储中一般一份数据至少会有三个副本，允许不同节点间副本同步的延时就是软状态的体现。mysql replication的异步复制也是一种体现。
+- 最终一致性（Eventual Consistency）
+最终一致性是指系统中的所有数据副本经过一定时间后，最终能够达到一致的状态。弱一致性和强一致性相反，最终一致性是弱一致性的一种特殊情况。
+
+### 4. Zookeeper追求的一致性
+Zookeeper在数据同步时，追求的并不是强一致性，而是顺序一致性（事务id的单调递增）。
