@@ -189,7 +189,7 @@ Zookeeper集群中的节点有三种角色（这里的节点指服务器节点�
 ## 九、ZAB协议
 
 ### 1. 什么是ZAB协议
-Zookeeper作为非常重要的分布式协调组件，需要进行集群部署，集群中会以一主多从的形式进行部署。Zookeeper为了保证数据的一致性，使用了ZAB（Zookeeper Atomic Broadcast）协议，这个协议解决了Zookeeper的奔溃恢复和主从数据同步的问题。
+Zookeeper作为非常重要的分布式协调组件，需要进行集群部署，集群中会以一主多从的形式进行部署。Zookeeper为了保证数据的一致性，使用了ZAB（Zookeeper Atomic Broadcast）协议，这个协议解决了Zookeeper的崩溃恢复和主从数据同步的问题。
 ![20220402133952](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402133952.png)
 
 ### 2. ZAB协议定义的四种节点状态
@@ -216,3 +216,11 @@ Zookeeper集群中的节点在上线时，将会进入到Looking状态，也就�
 此时投票箱中有票数超过集群半数的服务器节点，该节点确定为Leader，选举结束（服务器节点数为非Observer节点的数量，为3，可以从配置文件中获取，票数超过一半就是至少有两票）。
 
 当第三台节点上线时，发现集群已经选举出了Leader，于是把自己作为Follower。
+
+### 4. 崩溃恢复时的Leader选举
+Leader建立完后，Leader周期性地不断向Follower发送心跳（ping命令，没有内容的socket），Follower为周期性地读socket数据。当Leader崩溃后，就停止了心跳的发送，Follower在尝试读socket数据的时候发现socket通道已关闭，于是Follower开始进入到Looking状态，重新回到上一节中的Leader选举状态，此时集群不能对外提供服务。
+
+### 5. 主从服务器之间的数据同步
+![20220402141246](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402141246.png)
+
+### 6. Zookeeper中NIO与BIO的应用
