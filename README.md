@@ -51,3 +51,87 @@ ZeroMQ被设计成一个“库”而不是一个中间件，这种实现也可�
 ## 三、Kafka的基本知识
 
 ### 1. Kafka的安装
+- 部署一台Zookeeper服务器
+- 安装jdk
+- 下载kafka的安装包
+- 上传到kafka服务器上：```/usr/local/kafka```
+- 解压缩压缩包
+- 进入到config目录内，修改server.properties
+```
+# broker.id属性在kafka集群中必须要是唯一
+broker.id=0
+# kafka部署的机器ip和提供服务的端口号
+Listeners=PLAINTEXT://172.26.73.44:9092
+# kafka的消息存储文件
+Log.dir=/usr/local/data/kafka-logs
+# kafka连接的Zookeeper地址
+zookeeper.connect=172.26.73.44:2181
+```
+- 进入到bin目录内，执行以下命令来启动kafka服务器（带着配置文件）
+```
+./kafka-server-start.sh -daemon ../config/server.properties
+```
+- 校验kafka是否启动成功
+进入到zk内查看是否有kafka的节点：```/brokers/ids/0```
+
+### 2. kafka中的一些基本概念
+kafka中有这么些复杂的概念
+![20220402155640](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402155640.png)
+
+| 名称 | 解释 |
+| ---- | ---- |
+| Broker | ixoaxi中间件处理节点，一个Kafka节点就是一个broker，一个或者多个Broker可以组成一个Kafka集群 |
+| Topic  | kafka根据topic对消息进行归类，发布到kafka集群的每条消息都需要指定一个topic |
+| Producer | 消息生产者，向Broker发送消息的客户端 |
+| Consumer | 消息消费者，从Broker读取消息的客户端 |
+| | |
+| | |
+
+
+### 3. 创建topic
+topic可以实现消息的分类，不同消费者订阅不同的topic
+![20220402160415](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402160415.png)
+
+执行以下命令创建名为“test”的topic，这个topic只有一个partition，并且备份因子也设置为1：
+```
+./kafka-topics.sh --create --zookeeper 172.26.73.44:2181 --replication-factor 1 --partitions 1 --topic test
+```
+查看当前kafka内有哪些topic：
+```
+./kafka-topics.sh --list --zookeeper localhost:2181
+```
+
+### 4. 发送消息
+kafka自带了一个producer命令客户端，可以从本地文件中读取内容，或者我们也可以在命令行中直接输入内容，并将这些内容以消息的形式发送到kafka集群中。在默认情况下，每一个行会被当做一个独立的消息。使用kafka的发送消息的客户端，指定发送到的kafka服务器地址和topic
+```
+./kafka-console-producer.sh --broker-list 172.26.73.44:9092 --topic test
+```
+
+### 5. 消费消息
+对于consumer，kafka同样也携带了一个命令行客户端，会将获取到内容在命令中进行输出，默认是消费最新的消息。使用kafka的消费者消息的客户端，从指定kafka服务器的指定topic中消费消息
+- 方式一：从当前主题中的最后一条消息的offset（偏移量位置）+1开始消费
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --topic test
+```
+- 方式二：从当前主题中的第一条消息开始消费
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --from-beginning --topic test
+```
+
+几个注意点：
+- 消息会被存储
+- 消息是顺序存储的
+- 消息是有偏移量的
+- 消费时可以致命偏移量进行消费
+
+
+
+### 6. 关于消息的细节
+![20220402162707](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402162707.png)
+
+- 生产者将消息发送给broker，broker会将消息保存在本地的日志文件中
+```
+/usr/local/kafka/data/kafka-logs/主题-分区/00000000.log
+```
+- 消息的保存是有序的，通过offset偏移量来描述消息的有序性
+- 消费者消费消息时也是通过offset来描述当前要消费的那条消息的位置
