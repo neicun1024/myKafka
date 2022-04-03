@@ -125,7 +125,6 @@ kafka自带了一个producer命令客户端，可以从本地文件中读取内�
 - 消费时可以致命偏移量进行消费
 
 
-
 ### 6. 关于消息的细节
 ![20220402162707](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402162707.png)
 
@@ -135,3 +134,73 @@ kafka自带了一个producer命令客户端，可以从本地文件中读取内�
 ```
 - 消息的保存是有序的，通过offset偏移量来描述消息的有序性
 - 消费者消费消息时也是通过offset来描述当前要消费的那条消息的位置
+
+
+### 7. 单播消息
+在一个kafka的topic中，启动两个消费者，一个生产者，问：生产者发送消息，这条消息是否同时被两个消费者消费？
+
+如果多个消费者在同一个消费组，那么只有一个消费者可以收到订阅的topic中的消息。换言之，同一个消费组中只能有一个消费者收到一个topic中的消息。
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --consumer-property group.id=testGroup --topic test
+```
+
+### 8. 多播消息
+不同的消费组订阅同一个topic，那么每个消费组中只有一个消费者能收到消息。实际上也是多个消费组中的多个消费者收到了同一个消息。
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --consumer-property group.id=testGroup1 --topic test
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --consumer-property group.id=testGroup2 --topic test
+```
+
+下图就是描述多播和单薄消息的区别
+![20220402194357](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402194357.png)
+
+
+### 9. 查看消费组的详细信息
+通过以下命令可以查看到消费组的详细信息
+```
+./kafka-consumer-groups.sh --bootstrap-server 172.26.73.44:9092 --describe --group testGroup
+```
+![20220402195037](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402195037.png)
+
+重点关注以下几个信息：
+- current-offset：最后被消费的消息的偏移量
+- Log-end-offset：消息总量（最后一条消息的偏移量）
+- Lag：积压了多少条消息
+
+
+## 四、主题和分区的概念
+
+### 1. 主题Topic
+主题-topic在kafka中是一个逻辑的概念，kafka通过topic将消息进行分类。不同的topic会被订阅该topic的消费者消费。
+
+但是有一个问题，如果说这个topic中的消息非常非常多，多到需要几T来存，因为消息是会被保存到log日志文件中的。为了解决这个文件过大的问题，kafka提出了Patition分区的概念。
+
+### 2. 分区Partition
+
+通过Partition将一个topic中的消息分区来存储。这样的好处有多个：
+- 分区存储，可以解决统一存储文件过大的问题
+- 提供了读写的吞吐量：读和写可以同时在多个分区中进行
+![20220402195620](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402195620.png)
+
+创建多分区的主题
+```
+./kafka-topics.sh --create --zookeeper 172.26.73.44:2181 --replication-factor 1 --partitions 2 --topic test1
+```
+
+查看topic的分区信息
+```
+./kafka-topics.sh --describe --zookeeper localhost:2181 --topic test1
+```
+
+分区的作用：
+- 可以分布式存储
+- 可以并行写
+
+### 3. kafka中消息日志文件中保存的内容
+- 00000.log：这个文件中保存的就是消息
+- __consumer_offsets-49：
+  
+  kafka内部自己创建了__consumer_offsets主题，包含了50个分区。这个主题用来存放消费者消费某个主题的偏移量。因为每个消费者都会自己维护着消费的主题的偏移量，也就是说每个消费者会把消费的主题的偏移量自主上报给kafka中的默认主题：consumer_offsets。因此kafka为了提升这个主题的并发性，默认设置了50个分区。
+    - 提交到哪一个分区：通过hash函数：hash(consumerGroupId)%__consumer_offsets主题的分区数
+    - 提交到该主题中的内容是：key是consumerGroupId+topic+分区号，value就是当前offset的值
+- 文件中保存的消息，默认保存7天。七天到后消息会被删除
