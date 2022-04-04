@@ -204,3 +204,232 @@ kafka自带了一个producer命令客户端，可以从本地文件中读取内�
     - 提交到哪一个分区：通过hash函数：hash(consumerGroupId)%__consumer_offsets主题的分区数
     - 提交到该主题中的内容是：key是consumerGroupId+topic+分区号，value就是当前offset的值
 - 文件中保存的消息，默认保存7天。七天到后消息会被删除
+
+
+## 五、Kafka集群操作
+
+### 1. 搭建kafka集群（三个broker）
+
+- 创建三个**server.properties**文件
+```
+// 0 1 2
+broker.id=2
+// 9092 9093 9094
+listeners=PLAINTEXT://172.26.73.44:9094
+// kafka-logs kafka-logs-1 kafka-logs-2
+log.dir=/usr/local/data/kafka-logs-2
+```
+
+- 通过命令来启动三台broker
+```
+./kafka-server-start.sh -daemon ../config/server.properties
+./kafka-server-start.sh -daemon ../config/server1.properties
+./kafka-server-start.sh -daemon ../config/server2.properties
+```
+
+- 校验是否启动成功
+进入到zk中查看/brokers/ids中是否有三个znode（0，1，2）
+
+### 2. 副本的概念
+
+在创建主题时，除了指明了主题的分区数以外，还指明了副本数，那么副本是一个什么概念呢？
+
+副本是用来为主题中的分区创建多个备份，多个副本在Kafka集群的多个broker中，会有一个副本作为leader，其它是follower。
+
+副本是对分区的备份。在集群中，不同的副本会被部署在不同的broker上。下面例子：创建1个主题，2个分区，3个副本。
+
+```
+./kafka-topics.sh --create --zookeeper 172.26.73.44 -replication-factor 3 --partitions 2 --topic my-replicated-topic
+```
+![20220404102443](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404102443.png)
+
+- leader：
+  - kafka的写和读的操作，都发生在leader上。leader负责把数据同步给follower。当leader挂了，经过主从选举，从多个follower中选举产生一个新的leader
+- follower
+  - 接收leader的同步数据
+- isr
+  - 可以同步和已同步的节点会被存入到isr集合中。这里有一个细节：如果isr中的节点性能较差，会被踢出isr集合。
+
+此时，broker、主题、分区、副本，这些概念就全部展现了。
+
+集群中有多个broker，创建主题时可以指明主题有多个分区（把消息拆分到不同的分区中存储），可以为分区创建多个副本，不同的副本存放在不同的broker里。
+
+### 3. 关于集群消费
+1. 向集群发送消息：
+```
+./kafka-console-producer.sh --broker-list 172.26.73.44:9092,172.26.73.44:9093,172.26.73.44:9094 -topic my-replicated-topic
+```
+
+2. 从集群中消费消息：
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092,172.26.73.44:9093,172.26.73.44:9094 --from-beginning -topic my-
+replicated-topic
+```
+
+3. 指定消费组消费消息：
+```
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092,172.26.73.44:9093,172.26.73.44:9094 --from-beginning --consumer-property group.id=testGroup1 -topic my-
+replicated-topic
+./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092,172.26.73.44:9093,172.26.73.44:9094 --from-beginning --consumer-property group.id=testGroup2 -topic my-
+replicated-topic
+```
+
+4. 分区消费组的集群消费中的细节
+![20220404105544](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404105544.png)
+
+图中Kafka集群有两个broker，每个broker中有多个partition
+    - 一个partition只能被一个消费组中的一个消费者消费，目的是为了保证消费的顺序性，但是多个partition的多个消费者消费的总的顺序性是得不到保证的，那怎么做到消费的总顺序性呢？
+    - partition的数量决定了消费组中消费者的数量，建议同一个消费组中消费者的数量不要超过partition的数量，否则多的消费者消费不到消息
+    - 如果消费者挂了，那么会触发rebalance机制（后面介绍）
+
+
+
+## 六、Kafka的Java客户端-生产者的实现
+
+### 1. 生产者的基本实现
+- 引入依赖
+- 具体实现
+
+### 2. 生产者的同步发送消息
+![20220404130518](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404130518.png)
+
+如果生产者发送消息没有收到ack，生产者会阻塞，阻塞到3s的时间，如果还没有收到消息，会进行重试。重试的次数为3次。
+
+### 3. 生产者的异步发送消息
+![20220404131407](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404131407.png)
+
+异步发送，生产者发送完消息后就可以执行之后的业务，broker在收到消息后异步调用生产者提供的callback回调方法。
+
+### 4. 生产者中的ack的配置
+![20220404134726](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404134726.png)
+在同步发送的前提下，生产者在获得集群返回的ack之前会一直阻塞。那么集群什么时候返回ack呢？此时ack有3个配置：
+- acks=0 kafka-cluster不需要任何的broker收到消息，就立即返回ack给生产者，这种方式是最容易丢消息的，效率是最高的
+- acks=1 多副本之间的leader已经收到消息，并把消息写入到本地的log中，才会返回ack给生产者，这种方式的性能和安全性是最均衡的
+- acks=-1/all 里面有默认的配置min.insync.replicas=1（默认为1，推荐配置大于等于2），此时就需要leader和一个follower同步完后，才会返回ack给生产者（此时集群中有2个broker已完成数据同步）这种方式最安全，但性能最差
+
+### 5. 关于消息发送的缓冲区
+![20220404135504](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404135504.png)
+
+- kafka默认会创建一个消息缓冲区，用来存放要发送的消息，缓冲区大小为32MB
+- kafka本地线程会去缓冲区中一次拉16KB的数据，发送到broker
+- 如果线程拉不到16KB的数据，间隔10ms也会将已拉到的数据发到broker
+
+*Java中的CountDownLatch的作用：可以用CountDownLatch来启动多线程，合并多线程的查询结果（我的理解：CountDownLatch是一种满足线程安全的计数器）*
+
+
+## 七、Kafka的Java客户端-消费者的实现
+
+### 1. 消费者的基本实现
+
+### 2. 消费者offset的自动提交和手动提交
+
+1. 提交的内容
+
+消费者无论是自动提交还是手动提交，都需要把所属的消费组+消费的某个主题+消费的某个分区及消费的偏移量，这样的信息提交到集群的__consumer_offsets主题里面。
+
+![20220404154024](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404154024.png)
+
+1. 自动提交
+
+消费者poll到消息后就会自动提交offset。
+
+注意：自动提交可能会丢消息。因为消费者在消费前提交offset，有可能提交完后还没消费时消费者挂了。
+
+3. 手动提交
+
+需要把自动提交的配置改成false
+
+手动提交又分成了两种：
+- 手动同步提交
+  - 在消费完消息后调用同步提交的方法，当集群返回ack前一直阻塞，返回ack后表示提交成功，执行之后的逻辑
+- 手动异步提交
+  - 在消息消费完后提交，不需要等到集群ack，直接执行之后的逻辑，可以设置一个回调方法，供集群调用
+
+### 3. 长轮询poll消息
+
+- 默认情况下，消费者一次会poll 500条消息。
+- 代码中设置了长轮询的时间是1000毫秒
+
+意味着：
+    - 如果一次poll到500条，就直接执行for循环（处理这500条消息）
+    - 如果这一次没有poll到500内，且poll的累计时间在1秒内，那么长轮询继续poll，要么到500条消息，要么到1秒
+    - 如果多次poll都没达到500条，且poll的累计时间达到1秒，那么直接执行for循环（处理目前poll到的消息）
+
+- 如果两次poll的时间间隔超过了30秒的时间间隔（消费者消费消息所用的时间超过了30秒），kafka会认为其消费能力过弱，将其踢出消费组，将分区分配给其它消费者。然后触发rebalance机制，但是rebalance机制会造成性能开销。所以可以通过设置参数让一次poll的消息条数少一点（从500条到100条）。
+
+### 4. 消费者的健康状态检查
+
+消费者每隔1秒向kafka集群发送心跳以续约，如果集群发现有超过10秒没有续约的消费者，就将其踢出消费组，触发该消费组的rebalance机制，将该分区交给消费组里的其它消费者进行消费。
+
+### 5. 指定分区和偏移量、时间消费
+
+- 指定分区消费（消费指定partition的消息）
+- 从头消费（消费partition从头开始的消息）
+- 指定offset消费（消费partition的指定offset之后的消息）
+- 指定时间消费（在所有的partition中找到该时间对应的offset，然后在所有的partition中消费该offset之后的消息）
+
+### 6. 新消费组的消费offset规则
+新消费组中的消费者在启动以后，默认会从当前分区的最后一条消息的offest+1开始消费（消费新消息）。可以通过设置来让新的消费者第一次消费是从头开始消费。之后的消费是消费新消息（最后消费的位置的偏移量+1）
+
+
+## 八、Springboot中使用Kafka
+
+### 1. 引入依赖
+
+### 2. 编写配置文件
+
+### 3. 编写消息生产者
+
+### 4. 编写消费者
+
+### 5. 消费者中配置主题、分区、偏移量
+
+
+## 九、Kafka集群Controller、Rebalance和HW
+
+### 1. Controller
+每个broker启动时会向zk创建一个临时序号节点，获得的序号最小的那个broker（最先创建的节点）将会作为集群中的Controller，负责管理整个集群中的所有分区和副本的状态：
+- 当某个分区的leader副本出现故障时，由控制器负责为该分区选举新的leader，选举的规则是从Isr集合中最左边获得
+- 当检测到某个分区的Isr集合发生变化时，由控制器负责通知所有broker更新其元数据信息
+- 当使用kafka-topics.sh脚本为某个topic增加或减少分区时，同样还是由控制器负责让新分区被其它节点感知到
+
+### 2. Rebalance机制
+- 前提：消费者没有指明分区消费
+- 触发的条件：当消费组里消费者和分区的关系发生变化
+- 分区分配的策略：在触发Rebalance机制之前，消费者消费哪个分区有三种策略
+  - range：通过公式来计算每个消费者消费哪几个分区，前面的消费者是分区总数/消费者数量+1，之后的消费者是分区总数/消费者数量
+    ![20220404185242](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404185242.png)
+  - 轮询：所有分区轮流分配给所有消费者
+    ![20220404184405](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404184405.png)
+  - sticky：粘合策略，在触发了Rebalance后，会在之前已分配的基础上进行调整，不会改变之前的分配情况。如果这个策略没有开启，那么所有分区都需要重新分配。建议开启。
+
+### 3. HW、LEO、LSO
+- LSO（LogStartOffset）是某个副本第一条消息的offset
+
+- LEO（LogEndOffset）是某个副本下一条待写入的消息的offset
+
+- HW （High Watermark）俗称高水位，它标识了一个特定的消息偏移量（offset），消费者只能消费这个offset之前的消息
+
+![20220404200200](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404200200.png)
+
+在这幅图中，这个日志文件中有9条消息，第一条消息的offset（LSO）为0，最后一条消息的offset为8，下一条待写入的消息的offset（LEO）为9，日志文件的HW为6，表示消费者只能消费offset在0-5之间的消息，offset为6的消息对消费者而言是看不见的。
+
+分区ISR集合中的每个副本都会维护自身的LEO，而ISR集合中最小的LEO即为分区的HW。
+
+举例：某个分区的ISR集合中有3个副本，即1个leader副本和2个follower副本，此时分区的LEO和HW都分别为3。消息3和消息4从生产者出发后先被存入leader副本。
+
+![20220404201747](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404201747.png)
+
+在消息被写入副本之后，follower副本会发送拉取请求来拉取消息3和消息4，进行消息同步。
+
+![20220404201833](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404201833.png)
+
+在同步过程中不同的副本同步的效率不尽相同，在某一时刻follower1完全跟上了leader副本而follower2只同步了消息3，如此leader副本的LEO为5，follower1的LEO为5，follower2的LEO 为4，那么当前分区的HW取最小值4，此时消费者可以消费到offset0至3之间的消息。
+
+![20220404201947](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404201947.png)
+
+当所有副本都成功写入消息3和消息4之后，整个分区的HW和LEO都变为5，因此消费者可以消费到offset为4的消息了。
+
+![20220404202029](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404202029.png)
+
+由此可见kafka的复制机制既不是完全的同步复制，也不是单纯的异步复制。事实上，同步复制要求所有能工作的follower副本都复制完，这条消息才会被确认已成功提交，这种复制方式极大的影响了性能。而在异步复制的方式下，follower副本异步的从leader副本中复制数据，数据只要被leader副本写入就会被认为已经成功提交。在这种情况下，如果follower副本都还没有复制完而落后于leader副本，然后leader副本宕机，则会造成数据丢失。kafka使用这种ISR的方式有效的权衡了数据可靠性和性能之间的关系。
