@@ -49,8 +49,8 @@ zk中的znode，包含了四个部分：
 
 ### 3. zk中节点znode的类型
 
-- 持久节点：创建出的节点，在会话结束后仍然存在。保存数据
-- 持久序号节点：-s （sequential的缩写）创建出的节点，根据先后顺序，会在节点之后带上一个数值，越后执行数值越大，适用于分布式锁的应用场景-单调递增
+- 持久节点：创建出的节点，在会话结束后仍然存在。用于保存数据；
+- 持久序号节点：-s （sequential的缩写）创建出的节点，根据先后顺序，会在节点之后带上一个数值，越后执行数值越大，适用于分布式锁的应用场景-单调递增；
 - 临时节点：-e （ephemeral的缩写）临时节点是在会话结束后，通过这个特性，zk可以实现服务注册与发现的效果。那么临时节点时如何维持心跳呢？
 ![20220401235636](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220401235636.png)
 - 临时序号节点：-e -s 跟持久序号节点相同，适用于临时的分布式锁。
@@ -58,11 +58,12 @@ zk中的znode，包含了四个部分：
 - TTL节点：-ttl 可以指定节点的到期时间，到期后被zk定时删除。只能通过系统配置*zookeeper.extendedTypesEnabled=true*开启
 
 ### 4. zk的数据持久化
-zk的数据是运行在内存中，zk提供了两种在能够持久化机制：
+zk的数据是运行在内存中，zk提供了两种持久化机制：
 - 事务日志
   - zk把执行的命令以日志形式保存在dataLogDir指定的路径中的文件中（如果没有指定dataLogDir，则按dataDir指定的路径）。
 - 数据快照
   - zk会在一定的时间间隔内做一次内存数据的快照，把该时刻的内存数据保存在快照文件中。
+
 zk通过两种形式的持久化，在恢复时先恢复快照文件中的数据到内存中，再用日志文件中的数据做增量恢复，这样的恢复速度更快。
 
 
@@ -83,7 +84,7 @@ zk通过两种形式的持久化，在恢复时先恢复快照文件中的数据
   - ctime：创建的时间
   - mZxid：修改节点的事务ID
   - mtime：修改的时间
-  - pZxid：添加和删除子节点的事务ID
+  - pZxid：添加和删除子节点的事务ID（修改子节点的值不会引起事务ID的变化）
   - cversion：版本号
   - dataVersion：节点内数据的版本，每更新一次数据，版本会+1
   - aclVersion：此节点的权限版本
@@ -107,19 +108,18 @@ create /test-node abc auth:xiaoming:123456:cdwra
 ```
 在另一个会话中必须先使用账号密码，才能拥有操作该节点的权限
 
+
 ## 五、Curator客户端的使用
 
 ### 1. Curator介绍
 Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zookeeper支持最好的客户端框架。Curator封装了大部分Zookeeper的功能，比如Leader选举、分布式锁等，减少了技术人员在使用Zookeeper时的底层细节开发工作。
-
-1. 引入Curator
 
 
 ## 六、Zookeeper实现分布式锁
 
 ### 1. zk中锁的种类：
 - 读锁：大家都可以读，要想上读锁的前提：之前的锁没有写锁
-- 写锁：只有得到写锁的才能写。要想上写锁的前提是，之前没有任何锁
+- 写锁：只有得到写锁的才能写。要想上写锁的前提：之前没有任何锁
 
 ### 2. zk如何上读锁
 - 创建一个临时序列节点，节点的数据是read，表示是读锁
@@ -127,6 +127,7 @@ Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zo
 - 判断最小节点是否是读锁：
   - 如果是读锁的话，则上锁成功（因为如果最小节点是读锁的话，它之后肯定没有写锁）
   - 如果不是读锁的话，则上锁失败，为最小节点设置监听。阻塞等待，zk的watch机制会当最小节点发生变化时通知当前节点，于是再执行第二步
+
 ![20220402105804](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402105804.png)
 
 ### 3. zk如何上写锁
@@ -135,16 +136,21 @@ Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zo
 - 判断自己是否是最小的节点：
   - 如果是，则上写锁成功
   - 如果不是，说明前面还有锁，则上锁失败，监听最小的节点，如果最小节点有变化，则回到第二步
+
 ![20220402110020](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402110020.png)
 
 ### 4. 羊群效应
 
-如果用上述的上锁方式，只要节点发生变化，就会触发其它节点的监听事件，这样的话对zk的压力非常大，这就是羊群效应（惊群效应，只要有一个节点释放，其它节点都“受到惊吓”）。可以调整成链式监听来解决这个问题。
+如果用上述的上锁方式，只要节点发生变化，就会触发其它节点的监听事件，这样的话对zk的压力非常大，这就是羊群效应（惊群效应，只要有一个节点释放，其它节点都“受到惊吓”）。
+
+可以调整成链式监听来解决这个问题：节点不是监听最小的节点，而是监听上一个节点。
+
 ![20220402124142](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402124142.png)
 
 ### 5. curator实现读写锁
 1. 获取读锁
 2. 获取写锁
+
 
 ## 七、Zookeeper的watch机制
 
@@ -155,7 +161,8 @@ Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zo
 - 客户端调用getData方法，watch参数是true。服务端接到请求，返回数据，并且在对应的哈希表里插入被Watch的Znode路径，以及Watcher列表。
 ![20220402125124](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402125124.png)
 - 当被Watch的Znode已删除，服务端会查找哈希表，找到该Znode对应的所有Watcher，异步通知客户端，并且删除哈希表中对应的Key-Value。
-![20220402125111](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402125111.png)
+![20220407210348](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220407210348.png)
+
 客户端使用了NIO通信模式监听服务端的调用。
 
 ### 2. zkCli客户端使用watch
