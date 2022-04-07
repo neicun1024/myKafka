@@ -75,12 +75,12 @@ zookeeper.connect=172.26.73.44:2181
 进入到zk内查看是否有kafka的节点：```/brokers/ids/0```
 
 ### 2. kafka中的一些基本概念
-kafka中有这么些复杂的概念
+
 ![20220402155640](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402155640.png)
 
 | 名称 | 解释 |
 | ---- | ---- |
-| Broker | ixoaxi中间件处理节点，一个Kafka节点就是一个broker，一个或者多个Broker可以组成一个Kafka集群 |
+| Broker | 消息中间件处理节点，一个Kafka节点就是一个broker，一个或者多个Broker可以组成一个Kafka集群 |
 | Topic  | kafka根据topic对消息进行归类，发布到kafka集群的每条消息都需要指定一个topic |
 | Producer | 消息生产者，向Broker发送消息的客户端 |
 | Consumer | 消息消费者，从Broker读取消息的客户端 |
@@ -122,7 +122,7 @@ kafka自带了一个producer命令客户端，可以从本地文件中读取内�
 - 消息会被存储
 - 消息是顺序存储的
 - 消息是有偏移量的
-- 消费时可以致命偏移量进行消费
+- 消费时可以指明偏移量进行消费
 
 
 ### 6. 关于消息的细节
@@ -278,9 +278,9 @@ replicated-topic
 ![20220404105544](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404105544.png)
 
 图中Kafka集群有两个broker，每个broker中有多个partition
-    - 一个partition只能被一个消费组中的一个消费者消费，目的是为了保证消费的顺序性，但是多个partition的多个消费者消费的总的顺序性是得不到保证的，那怎么做到消费的总顺序性呢？
-    - partition的数量决定了消费组中消费者的数量，建议同一个消费组中消费者的数量不要超过partition的数量，否则多的消费者消费不到消息
-    - 如果消费者挂了，那么会触发rebalance机制（后面介绍）
+   - 一个partition只能被一个消费组中的一个消费者消费，目的是为了保证消费的顺序性，但是多个partition的多个消费者消费的总的顺序性是得不到保证的，那怎么做到消费的总顺序性呢？
+   - partition的数量决定了消费组中消费者的数量，建议同一个消费组中消费者的数量不要超过partition的数量，否则多的消费者消费不到消息
+   - 如果消费者挂了，那么会触发rebalance机制（后面介绍）
 
 
 
