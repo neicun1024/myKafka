@@ -303,9 +303,12 @@ replicated-topic
 ### 4. 生产者中的ack的配置
 ![20220404134726](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404134726.png)
 在同步发送的前提下，生产者在获得集群返回的ack之前会一直阻塞。那么集群什么时候返回ack呢？此时ack有3个配置：
-- acks=0 kafka-cluster不需要任何的broker收到消息，就立即返回ack给生产者，这种方式是最容易丢消息的，效率是最高的
-- acks=1 多副本之间的leader已经收到消息，并把消息写入到本地的log中，才会返回ack给生产者，这种方式的性能和安全性是最均衡的
-- acks=-1/all 里面有默认的配置min.insync.replicas=1（默认为1，推荐配置大于等于2），此时就需要leader和一个follower同步完后，才会返回ack给生产者（此时集群中有2个broker已完成数据同步）这种方式最安全，但性能最差
+- acks=0
+  - kafka-cluster不需要任何的broker收到消息，就立即返回ack给生产者，这种方式是最容易丢消息的，效率是最高的
+- acks=1
+  - 多副本之间的leader已经收到消息，并把消息写入到本地的log中，才会返回ack给生产者，这种方式的性能和安全性是最均衡的
+- acks=-1/all
+  - 里面有默认的配置min.insync.replicas=1（默认为1，推荐配置大于等于2），此时就需要leader和一个follower同步完后，才会返回ack给生产者（此时集群中有2个broker已完成数据同步）这种方式最安全，但性能最差
 
 ### 5. 关于消息发送的缓冲区
 ![20220404135504](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404135504.png)
