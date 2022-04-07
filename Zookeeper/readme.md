@@ -222,7 +222,7 @@ Zookeeper集群中的节点在上线时，将会进入到Looking状态，也就�
 当第三台节点上线时，发现集群已经选举出了Leader，于是把自己作为Follower。
 
 ### 4. 崩溃恢复时的Leader选举
-Leader建立完后，Leader周期性地不断向Follower发送心跳（ping命令，没有内容的socket），Follower为周期性地读socket数据。当Leader崩溃后，就停止了心跳的发送，Follower在尝试读socket数据的时候发现socket通道已关闭，于是Follower开始进入到Looking状态，重新回到上一节中的Leader选举状态，此时集群不能对外提供服务。
+Leader建立完后，Leader周期性地不断向Follower发送心跳（ping命令，没有内容的socket），Follower会周期性地读socket数据。当Leader崩溃后，就停止了心跳的发送，Follower在尝试读socket数据的时候发现socket通道已关闭，于是Follower重新进入到LOOKING状态，并进入上一节中的Leader选举过程，此时集群不能对外提供服务。
 
 ### 5. 主从服务器之间的数据同步
 ![20220402141246](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402141246.png)
