@@ -201,27 +201,23 @@ Zookeeper作为非常重要的分布式协调组件，需要进行集群部署�
 ![20220402133952](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402133952.png)
 
 ### 2. ZAB协议定义的四种节点状态
-- Looking：选举状态
-- Following：Follower节点（从节点）所处的状态
-- Leading：Leader节点（主节点）所处的状态
-- Observing：Observer节点所处的状态
+- LOOKING：选举状态
+- FOLLOWING：Follower节点（从节点）所处的状态
+- LEADING：Leader节点（主节点）所处的状态
+- OBSERVING：Observer节点所处的状态
 
 ### 3. 集群上线时的Leader选举过程
 Zookeeper集群中的节点在上线时，将会进入到Looking状态，也就是选举Leader的状态，这个状态具体会发生什么？
 
-当有两台节点上线时，会开始选举。
-![20220402135534](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402135534.png)
-第一轮投票：
-1. 生成一张自己的选票（此时Node-1中有选票（1，0），Node-2中有选票（2，0））
-2. 把选票投给对方（此时Node-1中有选票（1，0）和（2，0），Node-2中的选票都是（2，0））
-3. 把zxid/myid更大的选票投到投票箱中（Node-1和Node-2投的都是（2，0））
+当有两台节点上线时，会开始选举。（假设此时Node-1的(myid, zxid)=(1, 0)，Node-2的(myid, zxid)=(2, 0)）
 
-第二轮投票：
-1. 将手上较大的选票投出去（上一轮较大的选票，对于Node-1和Node-2来说都是（2，0））
-2. 把选票投给对方（此时Node-1和Node-2手中的选票都是（2，0））
-3. 把zxid/myid更大的选票投到投票箱中（Node-1和Node-2投的都是（2，0））
+1. 发送投票：每个节点把选票投给所有其它上线的节点（此时Node-1中有选票(1, 0)，Node-2中有选票(2, 0)）
+2. 接受投票：每个节点收到投票后，会判断该投票的有效性，如检查是否是本轮投票、是否来自LOOKING状态的服务器（此时Node-1中有选票(1, 0)和(2, 0)，Node-2中有两票(2, 0)）
+3. 处理投票：每个节点根据收到的所有选票来更新自己的选票，规则是选择更大的zxid，如果zxid相同则选择更大的myid（此时Node-1和Node-2的选票都变为(2, 0）
+4. 统计投票：每次投票后，节点会统计投票信息，如果有超过集群半数的节点收到相同的投票信息，那么这个选票对应的节点就作为leader节点（有超过半数的节点收到的投票都为(2, 0)，于是Node-2成为leader）
+5. 改变状态：一旦确定了Leader，每个节点就会更新自己的状态，如果是Follower，就变更为FOLLOWING，如果是Leader，就变更为LEADING
 
-此时投票箱中有票数超过集群半数的服务器节点，该节点确定为Leader，选举结束（服务器节点数为非Observer节点的数量，为3，可以从配置文件中获取，票数超过一半就是至少有两票）。
+*注意：服务器节点数为非Observer节点的数量，为3，可以从配置文件中获取，票数超过一半就是至少有两票。*
 
 当第三台节点上线时，发现集群已经选举出了Leader，于是把自己作为Follower。
 
