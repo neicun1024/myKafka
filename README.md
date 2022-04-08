@@ -477,7 +477,6 @@ kafka使用这种ISR的方式有效的权衡了数据可靠性和性能之间的
 
 订单创建后超过30分钟没有支付，则需要取消订单，这种场景可以通过延时队列来实现。
 
-
 #### 2. 具体方案
 
 ![20220408123514](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220408123514.png)
