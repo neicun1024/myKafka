@@ -332,7 +332,7 @@ replicated-topic
 
 ![20220404154024](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404154024.png)
 
-1. 自动提交
+2. 自动提交
 
 消费者poll到消息后就会自动提交offset。
 
