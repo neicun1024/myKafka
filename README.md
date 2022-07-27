@@ -1,5 +1,7 @@
 # myKafka
 
+我是在[B站](https://www.bilibili.com/video/BV1Xy4y1G7zA?p=1&share_medium=android&share_plat=android&share_session_id=d4b0a70c-78e9-49a3-954a-ca868f5c91bc&share_source=WEIXIN&share_tag=s_i&timestamp=1647780691&unique_k=xF547Hi&vd_source=06b6073b84003ede69290737594de026)上学习的Kafka，以下是一些记录和总结。
+
 ## 一、为什么要使用消息队列
 
 ### 1. 同步的方式存在的问题
@@ -151,7 +153,7 @@ kafka自带了一个producer命令客户端，可以从本地文件中读取内�
 ./kafka-console-consumer.sh --bootstrap-server 172.26.73.44:9092 --consumer-property group.id=testGroup2 --topic test
 ```
 
-下图就是描述多播和单薄消息的区别
+下图就是描述多播和单播消息的区别
 ![20220402194357](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402194357.png)
 
 
