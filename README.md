@@ -459,7 +459,7 @@ kafka使用这种ISR的方式有效的权衡了数据可靠性和性能之间的
 
 解决方法：将自动提交改为手动提交。
 
-![20220407235129](https://raw.githubusercontent.com/neicun1024/PicBed/images_for_markdown/20220407235129.png)
+![20220407235129](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220407235129.png)
 
 ### 3. 如何做到顺序消费
 - 发送方：在发送时将ack不能设置0，关闭重试，使用同步发送，等到发送成功再发送下一条。
