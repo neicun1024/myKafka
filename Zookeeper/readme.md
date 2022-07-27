@@ -29,6 +29,7 @@ ZooKeeper是一种分布式协调服务，用于管理大型主机。在分布�
 ### 1. zk是如何保存数据的
 zk中的数据是保存在节点上的，节点就是Znode，多个znode之间构成一棵树的目录结构。
 Zookeeper的数据模型很像数据结构中的树，也很像文件系统。
+
 ![20220401213203](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220401213203.png)
 
 这样的层级结构，让每一个Znode节点拥有唯一的路径，就像命名空间一样对不同信息作出清晰的隔离。
