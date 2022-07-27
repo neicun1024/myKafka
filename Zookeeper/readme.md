@@ -13,8 +13,7 @@ ZooKeeper是一种分布式协调服务，用于管理大型主机。在分布�
 
 在分布式系统中，需要有Zookeeper作为分布式协调组件，协调分布式系统中的状态。
 
-- 分布式锁
-Zookeeper在实现分布式锁上，可以做到强一致性，关于分布式锁相关的知识，在之后的ZAB协议中介绍
+- 分布式锁<br>Zookeeper在实现分布式锁上，可以做到强一致性，关于分布式锁相关的知识，在之后的ZAB协议中介绍
 
 - 无状态化的实现
 ![20220401202953](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220401202953.png)
