@@ -332,13 +332,11 @@ replicated-topic
 
 消费者无论是自动提交还是手动提交，都需要把所属的消费组+消费的某个主题+消费的某个分区及消费的偏移量，这样的信息提交到集群的__consumer_offsets主题里面。
 
-![20220404154024](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220404154024.png)
-
 2. 自动提交
 
-消费者poll到消息后就会自动提交offset。
+消费者会在poll方法调用后每隔五秒（由auto.commit.interval.ms指定）提交一次offset。
 
-注意：自动提交可能会丢消息。因为消费者在消费前提交offset，有可能提交完后还没消费时消费者挂了。
+这种方式可能会导致消息重复消费，假如，某个消费者poll消息后，应用正在处理消息，在3秒后kafka进行了rebalance，那么由于没有更新offset导致rebalance后这部分消息重复消费。
 
 3. 手动提交
 
@@ -461,7 +459,7 @@ kafka使用这种ISR的方式有效的权衡了数据可靠性和性能之间的
 
 解决方法：将自动提交改为手动提交。
 
-![20220407235129](https://raw.githubusercontent.com/neicun1024/Interview/main/images_for_markdown/20220407235129.png)
+![20220407235129](https://raw.githubusercontent.com/neicun1024/PicBed/images_for_markdown/20220407235129.png)
 
 ### 3. 如何做到顺序消费
 - 发送方：在发送时将ack不能设置0，关闭重试，使用同步发送，等到发送成功再发送下一条。
