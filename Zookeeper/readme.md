@@ -40,7 +40,7 @@ zk中的znode，包含了四个部分：
 - data：保存数据
 - acl：权限（定义了什么样的用户能够操作这个节点，且能够进行怎样的操作）
   - c：create 创建权限，允许在该节点下创建子节点
-  - w：write 更新权限，允许更心该节点的数据
+  - w：write 更新权限，允更新该节点的数据
   - r：read 读取权限，允许读取该节点的内容以及子节点的列表信息
   - d：delete 删除权限，允许删除该节点的子节点
   - a：admmin 管理者权限，允许对该节点进行acl权限设置
@@ -51,7 +51,7 @@ zk中的znode，包含了四个部分：
 
 - 持久节点：创建出的节点，在会话结束后仍然存在。用于保存数据；
 - 持久序号节点：-s （sequential的缩写）创建出的节点，根据先后顺序，会在节点之后带上一个数值，越后执行数值越大，适用于分布式锁的应用场景-单调递增；
-- 临时节点：-e （ephemeral的缩写）临时节点是在会话结束后，通过这个特性，zk可以实现服务注册与发现的效果。那么临时节点时如何维持心跳呢？
+- 临时节点：-e （ephemeral的缩写）临时节点是在会话结束后，通过这个特性，zk可以实现服务注册与发现的效果。那么临时节点如何维持心跳呢？
 ![20220401235636](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220401235636.png)
 - 临时序号节点：-e -s 跟持久序号节点相同，适用于临时的分布式锁。
 - 容器节点（3.5.3版本新增）：-c （Container的缩写） Container容器节点，当容器中没有任何子节点，该容器节点会被zk定期删除（60s）
@@ -122,17 +122,19 @@ Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zo
 - 写锁：只有得到写锁的才能写。要想上写锁的前提：之前没有任何锁
 
 ### 2. zk如何上读锁
-- 创建一个临时序列节点，节点的数据是read，表示是读锁
-- 获取当前zk中序号比自己小的所有节点
+- 创建一个锁目录`/lock-node`
+- 在锁目录下创建一个临时序列节点，节点的数据是`read`，表示是读锁
+- 获取当前锁目录中序号比自己小的所有节点
 - 判断最小节点是否是读锁：
-  - 如果是读锁的话，则上锁成功（因为如果最小节点是读锁的话，它之后肯定没有写锁）
+  - 如果是读锁的话，则上锁成功（因为如果最小节点是读锁的话，当前肯定没在进行写操作）
   - 如果不是读锁的话，则上锁失败，为最小节点设置监听。阻塞等待，zk的watch机制会当最小节点发生变化时通知当前节点，于是再执行第二步
 
 ![20220402105804](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402105804.png)
 
 ### 3. zk如何上写锁
-- 创建一个临时序号节点，节点的数据是write，表示是写锁
-- 获取zk中所有的子节点
+- 创建一个锁目录`/lock-node`
+- 创建一个临时序号节点，节点的数据是`write`，表示是写锁
+- 获取当前锁目录中所有的子节点
 - 判断自己是否是最小的节点：
   - 如果是，则上写锁成功
   - 如果不是，说明前面还有锁，则上锁失败，监听最小的节点，如果最小节点有变化，则回到第二步
@@ -155,7 +157,7 @@ Curator是Netflix公司开源的一套Zookeeper客户端框架，Curator是对Zo
 ## 七、Zookeeper的watch机制
 
 ### 1. Watch机制介绍
-我们可以把Watchc理解成是注册在特定Znode上的触发器。当这个Znode发生改变，也就是调用了create，delete，setData方法的时候，将会触发Znode上注册的对应事件，请求Watch的客户端会接收到异步通知。
+我们可以把Watch理解成是注册在特定Znode上的触发器。当这个Znode发生改变，也就是调用了create，delete，setData方法的时候，将会触发Znode上注册的对应事件，请求Watch的客户端会接收到异步通知。
 
 具体交互过程如下：
 - 客户端调用getData方法，watch参数是true。服务端接到请求，返回数据，并且在对应的哈希表里插入被Watch的Znode路径，以及Watcher列表。
@@ -231,12 +233,12 @@ Leader建立完后，Leader周期性地不断向Follower发送心跳（ping命�
 - 在第6点中的半数以上指的是所有节点的半数以上（包括主节点和从节点），之所以只要半数以上，是为了提高整个集群写数据的性能
 
 ### 6. Zookeeper中NIO与BIO的应用
-- NIO（Non-blocking I/O，多路复用，将所有对端口的访问放到队列里面）
+- NIO（Non-block I/O，非阻塞IO，将所有对端口的访问放到队列里面）
   - 用于被客户端连接的2181端口，使用的是NIO模式与客户端建立连接
     ![20220402143412](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402143412.png)
   - 客户端开启Watch时，也使用NIO，等待Zookeeper服务器的回调
     ![20220402143751](https://raw.githubusercontent.com/neicun1024/PicBed/main/images_for_markdown/20220402143751.png)
-- BIO
+- BIO（Block I/O，阻塞IO）
   - 集群在选举时，多个节点之间的投票通信端口，使用BIO进行通信
 
 
